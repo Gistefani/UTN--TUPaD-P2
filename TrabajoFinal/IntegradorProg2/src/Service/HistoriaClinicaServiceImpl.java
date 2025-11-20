@@ -6,7 +6,7 @@ package Service;
 import java.util.List;
 import Dao.GenericDAO;
 import Models.HistoriaClinica;
-
+import java.sql.Connection;
 
 /**
  *
@@ -97,6 +97,16 @@ public class HistoriaClinicaServiceImpl implements GenericService <HistoriaClini
    
    
    }
+   public void insertarTx(HistoriaClinica historiaClinica, Connection conn) throws Exception {
+    validateHistoriaClinica(historiaClinica);   // valida igual que insertar normal
+    if (historiaClinicaDAO instanceof Dao.HistoriaClinicaDAO) {
+        ((Dao.HistoriaClinicaDAO) historiaClinicaDAO).insertTx(historiaClinica, conn);
+    } else {
+        throw new UnsupportedOperationException(
+            "El DAO no soporta inserción con conexión externa."
+        );
+    }
+}
 
     
 

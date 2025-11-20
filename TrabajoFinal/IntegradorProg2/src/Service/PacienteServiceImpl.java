@@ -5,8 +5,12 @@
 package Service;
 
 import Models.Paciente;
+import Models.HistoriaClinica;
 import java.util.List;
 import Dao.PacienteDAO;
+import java.time.LocalDate;
+import Config.DatabaseConnection;
+import java.sql.Connection;
 
 /**
  *
@@ -89,9 +93,48 @@ public class PacienteServiceImpl implements GenericService<Paciente>{
             throw new IllegalArgumentException("El DNI del paciente es obligatorio");
         }
     }
-   
-   
-   
+     public void insertarConHistoria(Paciente paciente) throws Exception {
+
+    validatePaciente(paciente);
+
+    Connection conn = null;
+
+    try {
+        conn = DatabaseConnection.getConnection();
+        conn.setAutoCommit(false); // 🚀 Iniciamos transacción
+
+        // 1) Insertar paciente
+        pacienteDAO.insertTx(paciente, conn);
+
+        // 2) Crear historia clínica asociada
+        HistoriaClinica hc = new HistoriaClinica();
+        hc.setNroHistoria("HC-" + paciente.getId());
+        hc.setAntecedentes("Sin antecedentes registrados");
+        hc.setMedicacionActual("Sin medicación registrada");
+        hc.setObservaciones("");
+        hc.setGrupoSanguineo(null);
+        hc.setEliminado(false);
+
+        // 🔥 ESTA ES LA PARTE QUE TE FALTABA
+        hc.setPaciente(paciente); // Asocia paciente con historia
+
+        // 3) Insertar historia clínica
+         historiaClinicaService.insertarTx(hc, conn);
+
+        // 4) Asociar en memoria
+        paciente.setHistoriaClinica(hc);
+
+        conn.commit(); // 💾 Guardamos todo
+
+    } catch (Exception e) {
+        if (conn != null) conn.rollback();
+        throw e;
+
+    } finally {
+        if (conn != null) conn.setAutoCommit(true);
+        if (conn != null) conn.close();
+    }
+}
    }
   
   

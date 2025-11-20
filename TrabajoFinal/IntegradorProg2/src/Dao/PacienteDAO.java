@@ -24,17 +24,17 @@ public class PacienteDAO implements GenericDAO<Paciente>{
     
    /** Inserta un nuevo paciente.*/
     private static final String INSERT_SQL =
-            "INSERT INTO paciente (nombre, apellido, dni, fechaNacimiento, eliminado, historiaClinica_id) " +
-            "VALUES (?, ?, ?, ?, ?, ?)";
+            "INSERT INTO paciente (nombre, apellido, dni, fecha_nacimiento, eliminado) " +
+            "VALUES (?, ?, ?, ?, ?)";
     
     /** Actualiza datos de un paciente (sin tocar eliminado). */
     private static final String UPDATE_SQL =
-            "UPDATE paciente SET nombre=?, apellido=?, dni=?, fecha_nacimiento=?, historiaClinica_id=? " +
-            "WHERE idPACIENTE=?";
+    "UPDATE paciente SET nombre=?, apellido=?, dni=?, fecha_nacimiento=? " +
+    "WHERE id=?";
     
     /** Soft delete: marca eliminado=TRUE. */
     private static final String DELETE_SQL =
-            "UPDATE paciente SET eliminado=TRUE WHERE idPACIENTE=?";
+            "UPDATE paciente SET eliminado=TRUE WHERE id=?";
     
      /** Obtiene un paciente por su ID (incluye JOIN con historia_clinica). */
     private static final String SELECT_BY_ID_SQL =
@@ -64,24 +64,80 @@ public class PacienteDAO implements GenericDAO<Paciente>{
     
     // Inserta un paciente (versión sin transacción).
     
-     @Override
-    public void insertar(Paciente paciente) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
+    @Override
+public void insertar(Paciente paciente) throws Exception {
+    Connection conn = null;
+    PreparedStatement stmt = null;
 
-            setPacienteParameters(stmt, paciente);
-            stmt.executeUpdate();
-            setGeneratedId(stmt, paciente);
+    try {
+
+        conn = DatabaseConnection.getConnection();
+        conn.setAutoCommit(false); // INICIA TRANSACCIÓN
+
+        stmt = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS);
+
+        stmt.setString(1, paciente.getNombre());
+        stmt.setString(2, paciente.getApellido());
+        stmt.setString(3, paciente.getDni());
+
+        if (paciente.getFechaNacimiento() != null)
+            stmt.setDate(4, java.sql.Date.valueOf(paciente.getFechaNacimiento()));
+        else
+            stmt.setNull(4, Types.DATE);
+
+        stmt.setBoolean(5, paciente.isEliminado());
+
+        stmt.executeUpdate();
+        setGeneratedId(stmt, paciente);
+
+        // Insertar historia clínica si existe
+        if (paciente.getHistoriaClinica() != null) {
+            HistoriaClinica hc = paciente.getHistoriaClinica();
+            hc.setPaciente(paciente);
+            historiaClinicaDAO.insertTx(hc, conn);
+        }
+
+        conn.commit(); // ❇️ Todo OK
+
+    } catch (Exception ex) {
+
+        if (conn != null) conn.rollback(); // ❗ Revertir
+
+        throw ex;
+
+    } finally {
+
+        if (stmt != null) stmt.close();
+
+        if (conn != null) {
+            conn.setAutoCommit(true);
+            conn.close();
         }
     }
+}
     
     //Inserta un paciente usando una conexión externa (para transacciones).
     @Override
     public void insertTx(Paciente paciente, Connection conn) throws Exception {
         try (PreparedStatement stmt = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
-            setPacienteParameters(stmt, paciente);
+            stmt.setString(1, paciente.getNombre());
+            stmt.setString(2, paciente.getApellido());
+            stmt.setString(3, paciente.getDni());
+
+            if (paciente.getFechaNacimiento() != null)
+                 stmt.setDate(4, java.sql.Date.valueOf(paciente.getFechaNacimiento()));
+            else
+                stmt.setNull(4, Types.DATE);
+
+            stmt.setBoolean(5, paciente.isEliminado());
+
             stmt.executeUpdate();
             setGeneratedId(stmt, paciente);
+        }
+        if (paciente.getHistoriaClinica() != null) {
+            HistoriaClinica hc = paciente.getHistoriaClinica();
+            hc.setPaciente(paciente);
+            historiaClinicaDAO.insertTx(hc, conn);
         }
     }
     
@@ -95,14 +151,20 @@ public class PacienteDAO implements GenericDAO<Paciente>{
             stmt.setString(1, paciente.getNombre());
             stmt.setString(2, paciente.getApellido());
             stmt.setString(3, paciente.getDni());
-            stmt.setDate(4, java.sql.Date.valueOf(paciente.getFechaNacimiento()));
-
-            if (paciente.getHistoriaClinica() != null)
-                stmt.setLong(5, paciente.getHistoriaClinica().getId());
+            
+            if (paciente.getFechaNacimiento() != null)
+                stmt.setDate(4, java.sql.Date.valueOf(paciente.getFechaNacimiento()));
+            
             else
-                stmt.setNull(5, Types.BIGINT);
+                stmt.setNull(4, Types.DATE);
+            
+            
+            
+            stmt.setInt(5, paciente.getId());
 
-            stmt.setLong(6, paciente.getId());
+            
+
+            
             stmt.executeUpdate();
         }
     }
@@ -128,50 +190,62 @@ public class PacienteDAO implements GenericDAO<Paciente>{
        }
 
     @Override
-    public Paciente getById(int id)throws Exception {
-       Paciente paciente  = null;
-       
-       try(Connection conn = DatabaseConnection.getConnection();
-               PreparedStatement stmt = conn.prepareStatement(SELECT_BY_ID_SQL)){
-       stmt.setInt(1, id);
-       try (ResultSet rs = stmt.executeQuery()){
-       
-           if (rs.next()){
-              paciente = new Paciente();
-              paciente.setId(rs.getInt("id"));
-              paciente.setNombre(rs.getString("nombre_paciente"));
-              paciente.setApellido(rs.getString("apellido_paciente"));
-              paciente.setDni(rs.getString("dni_paciente"));
-              paciente.setFechaNacimiento(rs.getDate("fechaNacimiento").toLocalDate());
-              paciente.setEliminado(rs.getBoolean("eliminado"));
-              //si tiene Hclinica lo cargamos
-              int hcId = rs.getInt("hc_id");
-              if (hcId !=0){
-                  HistoriaClinica hc =new HistoriaClinica();
-                  hc.setId((int) hcId);
-                  hc.setGrupoSanguineo(rs.getString("grupo_sanguineo")!= null ?
-                          Enum.valueOf(Models.GrupoSanguineo.class, rs.getString("grupo_sanguineo")) :
-                        null
-                          );
-                  hc.setAntecedentes(rs.getString("antecedentes"));
-                  hc.setMedicacionActual(rs.getString("mmedicacion_actual"));
-                  hc.setObservaciones(rs.getString("observaciones"));
-                  paciente.setHistoriaClinica(hc);
-              
-              
-              }
-           
-           }
-       
-       }
-       
-       }
-    return paciente;
-    
-    
-    
+public Paciente getById(int id) throws Exception {
+    Paciente paciente = null;
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(SELECT_BY_ID_SQL)) {
+
+        stmt.setInt(1, id);
+
+        try (ResultSet rs = stmt.executeQuery()) {
+
+            if (rs.next()) {
+
+                paciente = new Paciente();
+                paciente.setId(rs.getInt("id"));
+                paciente.setNombre(rs.getString("nombre"));
+                paciente.setApellido(rs.getString("apellido"));
+                paciente.setDni(rs.getString("dni"));
+                paciente.setEliminado(rs.getBoolean("eliminado"));
+
+                // --- FECHA DE NACIMIENTO (controla NULL) ---
+                java.sql.Date fechaSql = rs.getDate("fecha_nacimiento");
+                if (fechaSql != null) {
+                    paciente.setFechaNacimiento(fechaSql.toLocalDate());
+                } else {
+                    paciente.setFechaNacimiento(null);
+                }
+
+                // --- Historia clínica si existe ---
+                int hcId = rs.getInt("hc_id");
+
+                if (!rs.wasNull()) { // mejor que comparar != 0
+
+                    HistoriaClinica hc = new HistoriaClinica();
+                    hc.setId(hcId);
+
+                    // ENUM (si no es null)
+                    String grupo = rs.getString("grupo_sanguineo");
+                    if (grupo != null) {
+                        hc.setGrupoSanguineo(
+                            Enum.valueOf(Models.GrupoSanguineo.class, grupo)
+                        );
+                    }
+
+                    hc.setAntecedentes(rs.getString("antecedentes"));
+                    hc.setMedicacionActual(rs.getString("medicacion_actual"));
+                    hc.setObservaciones(rs.getString("observaciones"));
+
+                    paciente.setHistoriaClinica(hc);
+                }
+            }
+        }
     }
-    @Override
+
+    return paciente;
+}
+   @Override
 public List<Paciente> getAll() throws Exception {
     List<Paciente> pacientes = new ArrayList<>();
 
@@ -181,19 +255,28 @@ public List<Paciente> getAll() throws Exception {
 
         while (rs.next()) {
             Paciente p = new Paciente();
-            p.setId(rs.getInt("idPACIENTE"));
-            p.setNombre(rs.getString("nombre_paciente"));
-            p.setApellido(rs.getString("apellido_paciente"));
-            p.setDni(rs.getString("dni_paciente"));
-            p.setFechaNacimiento(rs.getDate("fechaNacimiento").toLocalDate());
+            p.setId(rs.getInt("id"));
+            p.setNombre(rs.getString("nombre"));
+            p.setApellido(rs.getString("apellido"));
+            p.setDni(rs.getString("dni"));
+
+            // 🟢 Manejo seguro de fecha
+            java.sql.Date fechaSql = rs.getDate("fecha_nacimiento");
+            p.setFechaNacimiento(
+                    fechaSql != null ? fechaSql.toLocalDate() : null
+            );
+
             p.setEliminado(rs.getBoolean("eliminado"));
+            
+            HistoriaClinica hc = historiaClinicaDAO.getByPacienteId(p.getId());
+            p.setHistoriaClinica(hc);
+            
             pacientes.add(p);
         }
     }
 
     return pacientes;
 }
-
 private void setPacienteParameters(PreparedStatement stmt, Paciente paciente) throws SQLException {
     stmt.setString(1, paciente.getNombre());
     stmt.setString(2, paciente.getApellido());

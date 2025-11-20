@@ -32,9 +32,18 @@ public class AppMenu {
     
     this.scanner = new Scanner(System.in);
     
-    PacienteServiceImpl pacienteService = createPacienteService();
+    HistoriaClinicaDAO historiaClinicaDAO = new HistoriaClinicaDAO();
+    PacienteDAO pacienteDAO = new PacienteDAO(historiaClinicaDAO);
+
+        
+    HistoriaClinicaServiceImpl historiaClinicaService =
+    new HistoriaClinicaServiceImpl(historiaClinicaDAO);
     
-    this.menuHandler = new MenuHandler (scanner, pacienteService);
+    PacienteServiceImpl pacienteService =
+    new PacienteServiceImpl(pacienteDAO, historiaClinicaService);
+    
+    this.menuHandler = new MenuHandler (scanner, pacienteService,historiaClinicaService,
+                pacienteDAO);
     this.running = true;
     }
     //punto de entrada a la aplicacion Java

@@ -79,19 +79,28 @@ public Paciente(int id, boolean eliminado, String nombre, String apellido,
     }
     
    @Override
- public String toString() {
-        return "Paciente{" +
-                "id=" + getId() +
-                ", nombre='" + nombre + '\'' +
-                ", apellido='" + apellido + '\'' +
-                ", dni='" + dni + '\'' +
-                ", fechaNacimiento=" + fechaNacimiento +
-                ", historiaClinica=" + historiaClinica +
-                '}';
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Paciente{id=").append(getId())
+          .append(", nombre='").append(nombre).append('\'')
+          .append(", apellido='").append(apellido).append('\'')
+          .append(", dni='").append(dni).append('\'');
+
+        if (fechaNacimiento != null) {
+            sb.append(", fechaNacimiento=").append(fechaNacimiento);
+        }
+
+        if (historiaClinica != null) {
+            sb.append(",").append(historiaClinica.toString());
+        }
+
+        sb.append('}');
+        return sb.toString();
     }
-    
-    
 }
+    
+    
+
 
 
 

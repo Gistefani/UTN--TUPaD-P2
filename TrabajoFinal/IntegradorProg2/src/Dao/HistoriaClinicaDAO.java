@@ -6,7 +6,7 @@ package Dao;
 import Config.DatabaseConnection;
 import Models.HistoriaClinica;
 import Models.GrupoSanguineo;
-
+import Models.Paciente;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,16 +19,16 @@ public class HistoriaClinicaDAO implements GenericDAO <HistoriaClinica>{
     
     
     private static final String INSERT_SQL = """
-        INSERT INTO historia_clinica
-        (nroHistoria, grupoSanguineo, antecedentes, medicacionActual, observaciones, eliminado)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """;
+    INSERT INTO historia_clinica
+    (nro_historia, grupo_sanguineo, antecedentes, medicacion_actual, observaciones, eliminado, paciente_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+""";
 
     private static final String UPDATE_SQL = """
-        UPDATE historia_clinica
-        SET nroHistoria = ?, grupoSanguineo = ?, antecedentes = ?, medicacionActual = ?, observaciones = ?
-        WHERE id = ?
-    """;
+    UPDATE historia_clinica
+    SET antecedentes = ?, medicacion_actual = ?, observaciones = ?
+    WHERE id = ?
+""";
 
     private static final String DELETE_SQL = """
         UPDATE historia_clinica SET eliminado = TRUE WHERE id = ?
@@ -69,12 +69,11 @@ public class HistoriaClinicaDAO implements GenericDAO <HistoriaClinica>{
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(UPDATE_SQL)) {
 
-            stmt.setString(1, hc.getNroHistoria());
-            stmt.setString(2, hc.getGrupoSanguineo() != null ? hc.getGrupoSanguineo().name() : null);
-            stmt.setString(3, hc.getAntecedentes());
-            stmt.setString(4, hc.getMedicacionActual());
-            stmt.setString(5, hc.getObservaciones());
-            stmt.setLong(6, hc.getId());
+       
+            stmt.setString(1, hc.getAntecedentes());
+            stmt.setString(2, hc.getMedicacionActual());
+            stmt.setString(3, hc.getObservaciones());
+            stmt.setLong(4, hc.getId());
             stmt.executeUpdate();
         }
     }
@@ -130,6 +129,7 @@ public class HistoriaClinicaDAO implements GenericDAO <HistoriaClinica>{
         stmt.setString(4, hc.getMedicacionActual());
         stmt.setString(5, hc.getObservaciones());
         stmt.setBoolean(6, hc.isEliminado());
+        stmt.setInt(7, hc.getPaciente().getId());
     }
 
     private void setGeneratedId(PreparedStatement stmt, HistoriaClinica hc) throws SQLException {
@@ -142,19 +142,53 @@ public class HistoriaClinicaDAO implements GenericDAO <HistoriaClinica>{
 
     private HistoriaClinica mapHistoriaClinica(ResultSet rs) throws SQLException {
         HistoriaClinica hc = new HistoriaClinica();
+        
         hc.setId(rs.getInt("id"));
-        hc.setNroHistoria(rs.getString("nroHistoria"));
+        hc.setNroHistoria(rs.getString("nro_historia"));
 
-        String grupo = rs.getString("grupoSanguineo");
+        String grupo = rs.getString("grupo_sanguineo");
         if (grupo != null) {
-            hc.setGrupoSanguineo(GrupoSanguineo.valueOf(grupo));
+            if (grupo.endsWith("+")) {
+            grupo = grupo.replace("+", "_POSITIVO");
+        } else if (grupo.endsWith("-")) {
+            grupo = grupo.replace("-", "_NEGATIVO");
+        }
+
+        hc.setGrupoSanguineo(GrupoSanguineo.valueOf(grupo));    
+            
         }
 
         hc.setAntecedentes(rs.getString("antecedentes"));
-        hc.setMedicacionActual(rs.getString("medicacionActual"));
+        hc.setMedicacionActual(rs.getString("medicacion_actual"));
         hc.setObservaciones(rs.getString("observaciones"));
         hc.setEliminado(rs.getBoolean("eliminado"));
+        
+        int idPaciente = rs.getInt("paciente_id");
+         if (!rs.wasNull()) {
+        Paciente p = new Paciente();
+        p.setId(idPaciente);
+        hc.setPaciente(p);} 
+         else {
+        hc.setPaciente(null);
+    }
         return hc;
     }
+    
+    public HistoriaClinica getByPacienteId(int pacienteId) throws Exception {
+    String sql = "SELECT * FROM historia_clinica WHERE paciente_id = ? AND eliminado = FALSE";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        stmt.setInt(1, pacienteId);
+
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                return mapHistoriaClinica(rs);  // usa tu método existente
+            }
+        }
+    }
+    return null; // si no tiene historia clínica
+}
     
 }

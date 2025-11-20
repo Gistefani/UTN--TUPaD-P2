@@ -15,6 +15,8 @@ public class HistoriaClinica extends Base {
        private String medicacionActual;
        private String observaciones;
        
+       private Paciente paciente;
+       
        public HistoriaClinica(){}
        
        public HistoriaClinica(int id,boolean eliminado,String nroHistoria,GrupoSanguineo grupoSanguineo,
@@ -25,6 +27,7 @@ public class HistoriaClinica extends Base {
          this.antecedentes = antecedentes;
          this.medicacionActual = medicacionActual;
          this.observaciones = observaciones;
+         this.paciente = paciente;
          
        
        }
@@ -66,14 +69,25 @@ public class HistoriaClinica extends Base {
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
     }
-  @Override
-  public String toString(){
-  
-  return "Historia cLinica {"+ 
-          "id= "+getId() +",eliminado ="+isEliminado()+
-          ",nroHistoria ="+nroHistoria + ",grupo Sanguineo = "+ "antecedentes = "+
-          "medicacionActual ="+medicacionActual +",observaciones = "+observaciones;
-  
-  }
+    public Paciente getPaciente() { return paciente; }
+
+    public void setPaciente(Paciente paciente) {
+    this.paciente = paciente; }
     
+    
+    
+    
+   @Override
+    public String toString() {
+        return "HistoriaClinica{" +
+                "id=" + getId() +
+                ", nroHistoria='" + nroHistoria + '\'' +
+                ", grupoSanguineo=" + grupoSanguineo +
+                ", antecedentes='" + antecedentes + '\'' +
+                ", medicacionActual='" + medicacionActual + '\'' +
+                ", observaciones='" + observaciones + '\'' +
+                ", pacienteId=" + (paciente != null ? paciente.getId() : "null") +
+                '}';
+    }
 }
+
