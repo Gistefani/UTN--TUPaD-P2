@@ -55,8 +55,6 @@ public class Principal {
     }
    //System.out.println("=== ELIMINAR UN PRODUCTO ===");
    
-   e.actualizarStock("P1", 32);
-
     
    // Producto eliminarProd = e.eliminarProducto("P2");
 
